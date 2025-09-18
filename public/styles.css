@@ -85,3 +85,91 @@ tbody tr:hover { background: #0b1220; }
 
 .danger { background: var(--danger); border-color: var(--danger); }
 
+/* ---- Modern Calendar ---- */
+.calendar-toolbar {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+.calendar-toolbar .left { display: grid; grid-auto-flow: column; gap: 8px; align-items: center; }
+.calendar-toolbar .nav { display: grid; grid-auto-flow: column; gap: 8px; align-items: center; }
+.calendar-toolbar .current-range { color: var(--text); font-weight: 600; min-width: 160px; text-align: center; }
+.calendar-toolbar .right { display: grid; }
+.view-switch { display: grid; grid-auto-flow: column; gap: 8px; }
+.view-switch [role="tab"] {
+  background: #0b1220;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.view-switch [role="tab"][aria-selected="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.calendar-view { margin-top: 12px; }
+.weekday-header { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; padding: 0 2px 6px; color: var(--muted); }
+.weekday-header > div { text-align: right; padding-right: 6px; font-weight: 600; }
+
+.month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.month-day {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  min-height: 110px;
+  padding: 8px;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  background: #0b1220;
+  cursor: pointer;
+}
+.month-day.outside { opacity: 0.5; }
+.month-day.today { box-shadow: 0 0 0 1px var(--accent) inset; }
+.month-date { font-size: 12px; color: var(--muted); text-align: right; }
+.month-events { display: grid; gap: 6px; margin-top: 6px; }
+.evt-chip {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px;
+  align-items: center;
+  background: #0f1830;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  color: var(--text);
+  padding: 6px 8px;
+  border-radius: 8px;
+  text-align: left;
+}
+.evt-chip .dot { width: 8px; height: 8px; border-radius: 999px; }
+.evt-chip .txt { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.more-chip { background: transparent; border: 1px dashed var(--border); color: var(--muted); padding: 6px 8px; border-radius: 8px; }
+
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: grid; place-items: center; z-index: 50; }
+.modal-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; width: min(480px, 90vw); max-height: 80vh; display: grid; gap: 12px; }
+.modal-title { font-weight: 700; }
+.modal-list { display: grid; gap: 8px; overflow: auto; }
+.modal-row { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; text-align: left; background: #0b1220; border: 1px solid var(--border); color: var(--text); padding: 8px 10px; border-radius: 8px; }
+.modal-row .dot { width: 8px; height: 8px; border-radius: 999px; }
+.modal-row .time { color: var(--muted); font-size: 12px; }
+.modal-close { justify-self: end; }
+
+.week-grid { display: grid; gap: 8px; }
+.allday-row { display: grid; grid-template-columns: 80px 1fr; gap: 8px; }
+.allday-label { color: var(--muted); }
+.allday-cells { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.allday-cell { border: 1px dashed var(--border); border-radius: 8px; padding: 6px; min-height: 52px; display: grid; gap: 6px; background: #0b1220; }
+
+.time-grid { display: grid; grid-template-columns: 80px 1fr; gap: 8px; }
+.time-col { display: grid; }
+.hour { height: var(--hour-height, 48px); border-bottom: 1px solid var(--border); color: var(--muted); font-size: 12px; padding-top: 4px; }
+.days-wrap { position: relative; display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.day-col { position: relative; background: #0b1220; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.day-col-inner { position: relative; height: calc(24 * var(--hour-height, 48px)); }
+.day-head { display: grid; grid-auto-flow: column; gap: 6px; align-items: center; color: var(--muted); padding: 6px; }
+.day-head .dom { font-weight: 700; }
+.day-head .dom.today { color: var(--accent-2); }
+
+.event-block { position: absolute; background: rgba(59,130,246,0.15); border: 1px solid var(--border); border-left: 4px solid var(--accent); color: var(--text); border-radius: 8px; padding: 6px 8px; text-align: left; display: grid; gap: 4px; overflow: hidden; }
+.event-block .evt-time { font-size: 11px; color: var(--muted); }
+.event-block .evt-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
