@@ -50,6 +50,26 @@
         </label>
         <button id="loadEventsBtn">Termine laden</button>
       </div>
+
+      <div class="calendar-toolbar" role="toolbar" aria-label="Kalender Navigation">
+        <div class="left">
+          <button type="button" id="todayBtn" title="Heute">Heute</button>
+          <div class="nav">
+            <button type="button" id="prevBtn" aria-label="Vorheriger Zeitraum">◀</button>
+            <div class="current-range" id="currentRangeLabel"></div>
+            <button type="button" id="nextBtn" aria-label="Nächster Zeitraum">▶</button>
+          </div>
+        </div>
+        <div class="right">
+          <div class="view-switch" role="tablist" aria-label="Ansicht wählen">
+            <button type="button" role="tab" aria-selected="true" id="viewMonthBtn">Monat</button>
+            <button type="button" role="tab" aria-selected="false" id="viewWeekBtn">Woche</button>
+            <button type="button" role="tab" aria-selected="false" id="viewDayBtn">Tag</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="calendarView" class="calendar-view" aria-live="polite"></div>
     </section>
 
     <section class="card" id="eventsSection" hidden>
