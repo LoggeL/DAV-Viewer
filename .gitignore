@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Runtime data
+pids
+*.pid
+*.seed
+
+# Coverage
+coverage
+.nyc_output
+
+# Build outputs
+dist
+build
+.cache
+
+# Env
+.env
+.env.*
+
+# OS/Editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+

@@ -1,0 +1,87 @@
+:root {
+  --bg: #0f172a;
+  --card: #111827;
+  --muted: #94a3b8;
+  --text: #e2e8f0;
+  --accent: #3b82f6;
+  --accent-2: #22c55e;
+  --danger: #ef4444;
+  --border: #1f2937;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica Neue, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+header, footer {
+  padding: 16px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+header h1 { margin: 0; font-size: 22px; }
+main { max-width: 1100px; margin: 0 auto; padding: 16px; display: grid; gap: 16px; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
+input, textarea, select, button {
+  font: inherit;
+}
+input[type="text"], input[type="password"], input[type="url"], input[type="date"], input[type="datetime-local"], textarea, select {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #0b1220;
+  color: var(--text);
+}
+
+.checkbox { align-items: center; grid-auto-flow: column; justify-content: start; gap: 8px; }
+input[type="checkbox"] { width: 16px; height: 16px; }
+
+button {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: var(--accent);
+  color: white;
+  cursor: pointer;
+}
+button:hover { filter: brightness(1.05); }
+button:disabled { opacity: 0.6; cursor: default; }
+
+.row { display: grid; grid-auto-flow: column; gap: 12px; align-items: end; }
+.row.right { justify-content: end; }
+
+.msg { margin-top: 8px; min-height: 18px; color: var(--muted); }
+.msg.error { color: var(--danger); }
+.msg.ok { color: var(--accent-2); }
+
+.calendar-list { display: grid; gap: 8px; }
+.calendar-item { display: grid; grid-auto-flow: column; justify-content: start; align-items: center; gap: 8px; }
+
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 10px; border-bottom: 1px solid var(--border); }
+th { text-align: left; color: var(--muted); font-weight: 600; }
+tbody tr:hover { background: #0b1220; }
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.danger { background: var(--danger); border-color: var(--danger); }
+
