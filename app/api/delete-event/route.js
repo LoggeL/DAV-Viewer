@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { isDemo, initDemoEvents, validateCreds, buildClient, demoStore } from '../../../../lib/server/cal';
+import { isDemo, initDemoEvents, validateCreds, buildClient, demoStore } from '../../../lib/server/cal';
 
 export async function POST(request) {
   try {

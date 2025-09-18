@@ -1,12 +1,12 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import * as MonthView from '../../lib/views/month.js';
 import * as WeekView from '../../lib/views/week.js';
 import * as DayView from '../../lib/views/day.js';
 import * as AgendaView from '../../lib/views/agenda.js';
 
-export default function CalendarPage() {
+function CalendarPageInner() {
   const router = useRouter();
   const search = useSearchParams();
   const [creds, setCreds] = useState({ serverUrl: '', username: '', password: '' });
@@ -284,6 +284,14 @@ export default function CalendarPage() {
     head.innerHTML = `<span class="dow">${formatWeekdayShort(d)}</span><span class="dom ${isToday ? 'today' : ''}">${d.getDate()}</span>`;
     return head;
   }
+}
+
+export default function CalendarPage() {
+  return (
+    <Suspense fallback={null}>
+      <CalendarPageInner />
+    </Suspense>
+  );
 }
 
 function EventEditor({ onCancel, onSave, calendars, initial }) {
