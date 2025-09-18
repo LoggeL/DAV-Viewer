@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Kalender – CalDAV Webapp</title>
   <link rel="stylesheet" href="/styles.css" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/main.min.css" />
 </head>
 <body>
   <header>
@@ -24,7 +23,25 @@
     </section>
 
     <section class="card">
-      <div id="fullcalendar" class="calendar-view" aria-live="polite"></div>
+      <div class="calendar-toolbar" aria-label="Kalender Navigation">
+        <div class="left">
+          <div class="nav">
+            <button id="prevBtn" title="Zurück">◀</button>
+            <button id="nextBtn" title="Weiter">▶</button>
+            <button id="todayBtn" title="Heute">Heute</button>
+          </div>
+          <div class="current-range" id="currentRangeLabel">&nbsp;</div>
+        </div>
+        <div class="right">
+          <div class="view-switch" role="tablist" aria-label="Ansicht wechseln">
+            <button id="viewMonthBtn" role="tab" aria-selected="true">Monat</button>
+            <button id="viewWeekBtn" role="tab" aria-selected="false">Woche</button>
+            <button id="viewDayBtn" role="tab" aria-selected="false">Tag</button>
+            <button id="viewAgendaBtn" role="tab" aria-selected="false">Liste</button>
+          </div>
+        </div>
+      </div>
+      <div id="calendarView" class="calendar-view" aria-live="polite"></div>
     </section>
 
     <section class="card" id="editSection" hidden>
@@ -73,7 +90,6 @@
     <small>Hinweis: Viele CalDAV-Server erfordern vertrauenswürdige Zertifikate. CORS wird über diesen Server gelöst.</small>
   </footer>
 
-  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
   <script type="module" src="/calendar.js"></script>
 </body>
 </html>
