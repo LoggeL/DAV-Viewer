@@ -5,7 +5,7 @@ const state = {
   calendars: [],
   selectedCalendarUrls: new Set(),
   eventsByCal: new Map(),
-  viewMode: 'month', // 'month' | 'week' | 'day'
+  viewMode: 'month', // 'month' | 'week' | 'day' | 'agenda'
   currentDate: new Date()
 };
 
@@ -45,6 +45,7 @@ const el = {
   viewMonthBtn: document.getElementById('viewMonthBtn'),
   viewWeekBtn: document.getElementById('viewWeekBtn'),
   viewDayBtn: document.getElementById('viewDayBtn'),
+  viewAgendaBtn: document.getElementById('viewAgendaBtn'),
   calendarView: document.getElementById('calendarView'),
   currentRangeLabel: document.getElementById('currentRangeLabel')
 };
@@ -395,6 +396,12 @@ function initCalendarUI() {
     setViewMode('day');
     await refreshCalendar();
   });
+  if (el.viewAgendaBtn) {
+    el.viewAgendaBtn.addEventListener('click', async () => {
+      setViewMode('agenda');
+      await refreshCalendar();
+    });
+  }
   // Initialize labels and selection
   updateViewSwitchButtons();
   updateToolbarLabel();
@@ -424,7 +431,8 @@ function updateViewSwitchButtons() {
   const map = {
     month: el.viewMonthBtn,
     week: el.viewWeekBtn,
-    day: el.viewDayBtn
+    day: el.viewDayBtn,
+    agenda: el.viewAgendaBtn
   };
   for (const key of Object.keys(map)) {
     map[key].setAttribute('aria-selected', String(key === state.viewMode));
@@ -446,6 +454,12 @@ function getVisibleRange() {
     end.setHours(23, 59, 59, 999);
     return { start, end };
   }
+  if (state.viewMode === 'agenda') {
+    const start = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
+    const end = new Date(start.getTime() + 29 * 86400000);
+    end.setHours(23, 59, 59, 999);
+    return { start, end };
+  }
   // day
   const start = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
   const end = new Date(start.getFullYear(), start.getMonth(), start.getDate(), 23, 59, 59, 999);
@@ -458,6 +472,8 @@ function updateToolbarLabel() {
   if (state.viewMode === 'month') {
     el.currentRangeLabel.textContent = formatMonthLabel(state.currentDate);
   } else if (state.viewMode === 'week') {
+    el.currentRangeLabel.textContent = `${formatDayMonth(start)} – ${formatDayMonth(end)} ${start.getFullYear()}`;
+  } else if (state.viewMode === 'agenda') {
     el.currentRangeLabel.textContent = `${formatDayMonth(start)} – ${formatDayMonth(end)} ${start.getFullYear()}`;
   } else {
     el.currentRangeLabel.textContent = formatLongDate(start);
@@ -473,132 +489,56 @@ async function refreshCalendar() {
   // Fetch events using existing function
   await loadEvents();
   // Render calendar view
-  renderCalendarView();
+  await renderCalendarView();
 }
 
-function renderCalendarView() {
+async function renderCalendarView() {
   const container = el.calendarView;
   if (!container) return;
   container.innerHTML = '';
   const range = getVisibleRange();
+  const ctx = getViewContext();
   if (state.viewMode === 'month') {
-    renderMonthView(container, range);
+    const mod = await import('/views/month.js');
+    mod.render(container, ctx, range);
   } else if (state.viewMode === 'week') {
-    renderWeekView(container, range);
-  } else {
-    renderDayView(container, range);
+    const mod = await import('/views/week.js');
+    mod.render(container, ctx, range);
+  } else if (state.viewMode === 'day') {
+    const mod = await import('/views/day.js');
+    mod.render(container, ctx, range);
+  } else if (state.viewMode === 'agenda') {
+    const mod = await import('/views/agenda.js');
+    mod.render(container, ctx, range);
   }
 }
 
-function renderMonthView(container, { start }) {
-  const month = state.currentDate.getMonth();
-  const year = state.currentDate.getFullYear();
-
-  const header = document.createElement('div');
-  header.className = 'weekday-header';
-  const weekdays = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
-  for (const wd of weekdays) {
-    const cell = document.createElement('div');
-    cell.textContent = wd;
-    header.appendChild(cell);
-  }
-  container.appendChild(header);
-
-  const grid = document.createElement('div');
-  grid.className = 'month-grid';
-  container.appendChild(grid);
-
-  const events = getEventsForVisibleCalendars();
-  const eventsByDateKey = groupEventsByDateKey(events);
-
-  for (let i = 0; i < 42; i++) {
-    const date = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
-    const isOutside = date.getMonth() !== month;
-    const isToday = isSameDate(date, new Date());
-    const dateKey = toInputDate(date);
-
-    const cell = document.createElement('div');
-    cell.className = 'month-day' + (isOutside ? ' outside' : '') + (isToday ? ' today' : '');
-    cell.dataset.date = dateKey;
-
-    const head = document.createElement('div');
-    head.className = 'month-date';
-    head.textContent = String(date.getDate());
-    cell.appendChild(head);
-
-    const list = document.createElement('div');
-    list.className = 'month-events';
-    const dayEvents = eventsByDateKey.get(dateKey) || [];
-    // Limit visible chips to 3 and show +N more
-    const maxChips = 4;
-    dayEvents.slice(0, maxChips).forEach(({ cal, e }) => {
-      const chip = createEventChip(cal, e);
-      list.appendChild(chip);
-    });
-    if (dayEvents.length > maxChips) {
-      const more = document.createElement('button');
-      more.className = 'more-chip';
-      more.textContent = `+${dayEvents.length - maxChips} mehr`;
-      more.addEventListener('click', (evt) => {
-        evt.stopPropagation();
-        showDayEventListModal(dateKey, dayEvents);
-      });
-      list.appendChild(more);
-    }
-    cell.appendChild(list);
-
-    cell.addEventListener('click', () => {
-      const startTime = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 9, 0, 0, 0);
-      const endTime = new Date(startTime.getTime() + 60 * 60 * 1000);
-      showEditor({ calendarUrl: state.calendars[0]?.url || '', start: startTime.toISOString(), end: endTime.toISOString(), allDay: false });
-    });
-
-    grid.appendChild(cell);
-  }
+function getViewContext() {
+  return {
+    state,
+    toInputDate,
+    toInputDateTimeLocal,
+    endOfDay,
+    isSameDate,
+    formatWeekdayShort,
+    formatTimeLabel,
+    formatMonthLabel,
+    formatDayMonth,
+    formatLongDate,
+    startOfWeek,
+    minutesFromStartOfDay,
+    getHourHeightPx,
+    layoutOverlappingEvents,
+    getEventsForVisibleCalendars,
+    groupEventsByDateKey,
+    createEventChip,
+    createDayHeader,
+    showEditor,
+    escapeHtml,
+    formatDateTime
+  };
 }
 
-function showDayEventListModal(dateKey, items) {
-  // Simple inline modal implementation
-  const existing = document.querySelector('.modal');
-  if (existing) existing.remove();
-  const modal = document.createElement('div');
-  modal.className = 'modal';
-  const modalCard = document.createElement('div');
-  modalCard.className = 'modal-card';
-  const title = document.createElement('div');
-  title.className = 'modal-title';
-  const d = new Date(dateKey + 'T00:00:00');
-  title.textContent = formatLongDate(d);
-  const list = document.createElement('div');
-  list.className = 'modal-list';
-  for (const { cal, e } of items) {
-    const row = document.createElement('button');
-    row.className = 'modal-row';
-    row.innerHTML = `<span class="dot" style="background:${cal.color || 'var(--muted)'}"></span><span>${escapeHtml(e.summary || '')}</span><span class="time">${formatDateTime(e.start, e.allDay)}</span>`;
-    row.addEventListener('click', () => {
-      showEditor({
-        href: e.href,
-        etag: e.etag,
-        calendarUrl: cal.url,
-        summary: e.summary,
-        description: e.description,
-        location: e.location,
-        start: e.start,
-        end: e.end,
-        allDay: e.allDay
-      });
-      modal.remove();
-    });
-    list.appendChild(row);
-  }
-  const closeBtn = document.createElement('button');
-  closeBtn.className = 'modal-close';
-  closeBtn.textContent = 'Schließen';
-  closeBtn.addEventListener('click', () => modal.remove());
-  modalCard.append(title, list, closeBtn);
-  modal.appendChild(modalCard);
-  document.body.appendChild(modal);
-}
 
 function createEventChip(cal, e) {
   const chip = document.createElement('button');
@@ -624,247 +564,6 @@ function createEventChip(cal, e) {
   return chip;
 }
 
-function renderWeekView(container, { start, end }) {
-  const wrapper = document.createElement('div');
-  wrapper.className = 'week-grid';
-
-  const days = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
-    days.push(d);
-  }
-
-  // All-day row
-  const allDayRow = document.createElement('div');
-  allDayRow.className = 'allday-row';
-  const allDayHeader = document.createElement('div');
-  allDayHeader.className = 'time-col allday-label';
-  allDayHeader.textContent = 'Ganztägig';
-  allDayRow.appendChild(allDayHeader);
-
-  const allDayContainer = document.createElement('div');
-  allDayContainer.className = 'allday-cells';
-  for (let i = 0; i < 7; i++) {
-    const cell = document.createElement('div');
-    cell.className = 'allday-cell';
-    cell.dataset.date = toInputDate(days[i]);
-    cell.appendChild(createDayHeader(days[i]));
-    cell.addEventListener('click', () => {
-      const date = days[i];
-      // Create all-day event for that day
-      const startDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-      const endDate = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
-      showEditor({ calendarUrl: state.calendars[0]?.url || '', start: startDate.toISOString(), end: endDate.toISOString(), allDay: true });
-    });
-    allDayContainer.appendChild(cell);
-  }
-  allDayRow.appendChild(allDayContainer);
-  wrapper.appendChild(allDayRow);
-
-  // Time grid
-  const grid = document.createElement('div');
-  grid.className = 'time-grid';
-  const timeCol = document.createElement('div');
-  timeCol.className = 'time-col';
-  for (let h = 0; h < 24; h++) {
-    const hour = document.createElement('div');
-    hour.className = 'hour';
-    hour.textContent = String(h).padStart(2, '0') + ':00';
-    timeCol.appendChild(hour);
-  }
-  grid.appendChild(timeCol);
-
-  const daysWrap = document.createElement('div');
-  daysWrap.className = 'days-wrap';
-
-  const events = getEventsForVisibleCalendars();
-  const eventsByDay = new Map();
-  for (const d of days) eventsByDay.set(toInputDate(d), []);
-  for (const item of events) {
-    const dateKey = toInputDate(new Date(item.e.start));
-    if (eventsByDay.has(dateKey)) eventsByDay.get(dateKey).push(item);
-  }
-
-  for (let i = 0; i < 7; i++) {
-    const dayDate = days[i];
-    const dateKey = toInputDate(dayDate);
-    const col = document.createElement('div');
-    col.className = 'day-col';
-    col.dataset.date = dateKey;
-
-    const colInner = document.createElement('div');
-    colInner.className = 'day-col-inner';
-    col.appendChild(colInner);
-
-    // Click to create event at clicked time
-    col.addEventListener('click', (evt) => {
-      const bounds = col.getBoundingClientRect();
-      const y = evt.clientY - bounds.top;
-      const minutes = Math.max(0, Math.min(1439, Math.round((y / bounds.height) * 1440)));
-      const snapped = Math.round(minutes / 30) * 30;
-      const startDate = new Date(dayDate.getFullYear(), dayDate.getMonth(), dayDate.getDate(), Math.floor(snapped / 60), snapped % 60);
-      const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
-      showEditor({ calendarUrl: state.calendars[0]?.url || '', start: startDate.toISOString(), end: endDate.toISOString(), allDay: false });
-    });
-
-    const dayEvents = (eventsByDay.get(dateKey) || []);
-    const allDayEvents = dayEvents.filter(x => x.e.allDay);
-    const timedEvents = dayEvents.filter(x => !x.e.allDay);
-
-    // Render all-day as chips in top row
-    const alldayCell = allDayContainer.children[i];
-    for (const { cal, e } of allDayEvents) {
-      const chip = createEventChip(cal, e);
-      alldayCell.appendChild(chip);
-    }
-
-    // Layout timed events within day column
-    const layouts = layoutOverlappingEvents(timedEvents.map(x => ({
-      cal: x.cal,
-      e: x.e,
-      start: new Date(x.e.start),
-      end: new Date(x.e.end)
-    })));
-
-    for (const it of layouts) {
-      const block = document.createElement('button');
-      block.className = 'event-block';
-      block.style.borderLeftColor = it.cal.color || 'var(--accent)';
-      const top = minutesFromStartOfDay(it.start) / 60 * getHourHeightPx();
-      const height = Math.max(20, ((minutesFromStartOfDay(it.end) - minutesFromStartOfDay(it.start)) / 60) * getHourHeightPx());
-      const widthPercent = 100 / it.trackCount;
-      const leftPercent = widthPercent * it.trackIndex;
-      block.style.top = `${top}px`;
-      block.style.height = `${height}px`;
-      block.style.left = `calc(${leftPercent}% + 2px)`;
-      block.style.width = `calc(${widthPercent}% - 4px)`;
-      block.innerHTML = `<div class="evt-time">${formatTimeLabel(it.start)}–${formatTimeLabel(it.end)}</div><div class="evt-title">${escapeHtml(it.e.summary || '')}</div>`;
-      block.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        showEditor({
-          href: it.e.href,
-          etag: it.e.etag,
-          calendarUrl: it.cal.url,
-          summary: it.e.summary,
-          description: it.e.description,
-          location: it.e.location,
-          start: it.e.start,
-          end: it.e.end,
-          allDay: it.e.allDay
-        });
-      });
-      colInner.appendChild(block);
-    }
-
-    daysWrap.appendChild(col);
-  }
-
-  wrapper.appendChild(grid);
-  wrapper.appendChild(daysWrap);
-  container.appendChild(wrapper);
-}
-
-function renderDayView(container, { start }) {
-  const day = new Date(start.getFullYear(), start.getMonth(), start.getDate());
-
-  // Header row similar to all-day row
-  const alldayRow = document.createElement('div');
-  alldayRow.className = 'allday-row';
-  const allDayHeader = document.createElement('div');
-  allDayHeader.className = 'time-col allday-label';
-  allDayHeader.textContent = 'Ganztägig';
-  alldayRow.appendChild(allDayHeader);
-
-  const allDayContainer = document.createElement('div');
-  allDayContainer.className = 'allday-cells';
-  const cell = document.createElement('div');
-  cell.className = 'allday-cell';
-  cell.dataset.date = toInputDate(day);
-  cell.appendChild(createDayHeader(day));
-  cell.addEventListener('click', () => {
-    const startDate = new Date(day.getFullYear(), day.getMonth(), day.getDate());
-    const endDate = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1);
-    showEditor({ calendarUrl: state.calendars[0]?.url || '', start: startDate.toISOString(), end: endDate.toISOString(), allDay: true });
-  });
-  allDayContainer.appendChild(cell);
-  alldayRow.appendChild(allDayContainer);
-  container.appendChild(alldayRow);
-
-  const grid = document.createElement('div');
-  grid.className = 'time-grid';
-  const timeCol = document.createElement('div');
-  timeCol.className = 'time-col';
-  for (let h = 0; h < 24; h++) {
-    const hour = document.createElement('div');
-    hour.className = 'hour';
-    hour.textContent = String(h).padStart(2, '0') + ':00';
-    timeCol.appendChild(hour);
-  }
-  grid.appendChild(timeCol);
-
-  const daysWrap = document.createElement('div');
-  daysWrap.className = 'days-wrap';
-  const col = document.createElement('div');
-  col.className = 'day-col';
-  col.dataset.date = toInputDate(day);
-  const colInner = document.createElement('div');
-  colInner.className = 'day-col-inner';
-  col.appendChild(colInner);
-  col.addEventListener('click', (evt) => {
-    const bounds = col.getBoundingClientRect();
-    const y = evt.clientY - bounds.top;
-    const minutes = Math.max(0, Math.min(1439, Math.round((y / bounds.height) * 1440)));
-    const snapped = Math.round(minutes / 30) * 30;
-    const startDate = new Date(day.getFullYear(), day.getMonth(), day.getDate(), Math.floor(snapped / 60), snapped % 60);
-    const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
-    showEditor({ calendarUrl: state.calendars[0]?.url || '', start: startDate.toISOString(), end: endDate.toISOString(), allDay: false });
-  });
-
-  // Events
-  const events = getEventsForVisibleCalendars().filter(({ e }) => isSameDate(new Date(e.start), day));
-  const allDayEvents = events.filter(x => x.e.allDay);
-  const timedEvents = events.filter(x => !x.e.allDay);
-  for (const { cal, e } of allDayEvents) {
-    const chip = createEventChip(cal, e);
-    cell.appendChild(chip);
-  }
-  const layouts = layoutOverlappingEvents(timedEvents.map(x => ({
-    cal: x.cal, e: x.e, start: new Date(x.e.start), end: new Date(x.e.end)
-  })));
-  for (const it of layouts) {
-    const block = document.createElement('button');
-    block.className = 'event-block';
-    block.style.borderLeftColor = it.cal.color || 'var(--accent)';
-    const top = minutesFromStartOfDay(it.start) / 60 * getHourHeightPx();
-    const height = Math.max(20, ((minutesFromStartOfDay(it.end) - minutesFromStartOfDay(it.start)) / 60) * getHourHeightPx());
-    const widthPercent = 100 / it.trackCount;
-    const leftPercent = widthPercent * it.trackIndex;
-    block.style.top = `${top}px`;
-    block.style.height = `${height}px`;
-    block.style.left = `calc(${leftPercent}% + 2px)`;
-    block.style.width = `calc(${widthPercent}% - 4px)`;
-    block.innerHTML = `<div class=\"evt-time\">${formatTimeLabel(it.start)}–${formatTimeLabel(it.end)}</div><div class=\"evt-title\">${escapeHtml(it.e.summary || '')}</div>`;
-    block.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      showEditor({
-        href: it.e.href,
-        etag: it.e.etag,
-        calendarUrl: it.cal.url,
-        summary: it.e.summary,
-        description: it.e.description,
-        location: it.e.location,
-        start: it.e.start,
-        end: it.e.end,
-        allDay: it.e.allDay
-      });
-    });
-    colInner.appendChild(block);
-  }
-
-  daysWrap.appendChild(col);
-  container.appendChild(grid);
-  container.appendChild(daysWrap);
-}
 
 function createDayHeader(d) {
   const head = document.createElement('div');

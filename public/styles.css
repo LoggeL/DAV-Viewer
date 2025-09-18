@@ -173,3 +173,31 @@ tbody tr:hover { background: #0b1220; }
 .event-block .evt-time { font-size: 11px; color: var(--muted); }
 .event-block .evt-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* ---- Agenda View ---- */
+.agenda-list { display: grid; gap: 12px; }
+.agenda-day { background: #0b1220; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+.agenda-date { padding: 10px 12px; border-bottom: 1px solid var(--border); font-weight: 700; }
+.agenda-items { display: grid; }
+.agenda-row { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; padding: 10px 12px; background: transparent; border: 0; color: var(--text); text-align: left; }
+.agenda-row:hover { background: #0f1830; }
+.agenda-row .dot { width: 10px; height: 10px; border-radius: 999px; }
+.agenda-row .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agenda-row .time { color: var(--muted); font-size: 12px; }
+
+/* ---- Mobile Optimizations ---- */
+@media (max-width: 700px) {
+  :root { --hour-height: 36px; }
+  .calendar-toolbar { grid-template-columns: 1fr; }
+  .calendar-toolbar .left { justify-content: space-between; }
+  .calendar-toolbar .current-range { min-width: auto; font-size: 14px; }
+  .view-switch { overflow-x: auto; }
+  .weekday-header { grid-template-columns: repeat(7, minmax(90px, 1fr)); overflow-x: auto; }
+  .allday-cells { grid-template-columns: repeat(7, minmax(90px, 1fr)); overflow-x: auto; }
+  .days-wrap { grid-template-columns: repeat(7, minmax(120px, 1fr)); overflow-x: auto; }
+  .time-grid { grid-template-columns: 60px 1fr; }
+  .month-day { min-height: 90px; }
+  .evt-chip .txt { font-size: 12px; }
+  .modal-card { width: min(96vw, 480px); }
+  .agenda-row { grid-template-columns: auto 1fr; }
+  .agenda-row .time { grid-column: 1 / -1; }
+}
