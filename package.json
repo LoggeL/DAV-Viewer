@@ -2,16 +2,17 @@
   "name": "caldav-webapp",
   "version": "1.0.0",
   "private": true,
-  "type": "module",
   "description": "Webanwendung zum Anzeigen und Editieren von CalDAV-Kalendern",
   "scripts": {
-    "start": "node server.js",
-    "dev": "NODE_ENV=development node server.js"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
   },
   "dependencies": {
-    "cors": "^2.8.5",
-    "express": "^4.19.2",
     "ical.js": "^2.0.0",
+    "next": "^14.2.7",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "tsdav": "^2.1.2"
   }
 }
