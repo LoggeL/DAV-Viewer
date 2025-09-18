@@ -9,6 +9,11 @@
 <body>
   <header>
     <h1>CalDAV Webapp</h1>
+    <nav class="topnav">
+      <a href="/index.html" aria-current="page">Verbindung</a>
+      <a href="/calendar.html">Kalender</a>
+      <a href="/events.html">Termine</a>
+    </nav>
   </header>
 
   <main>
@@ -36,99 +41,7 @@
       <div id="connectMsg" class="msg"></div>
     </section>
 
-    <section class="card" id="calendarSection" hidden>
-      <h2>Kalender</h2>
-      <div id="calendarList" class="calendar-list"></div>
-      <div class="row">
-        <label>
-          Von
-          <input type="date" id="dateFrom" />
-        </label>
-        <label>
-          Bis
-          <input type="date" id="dateTo" />
-        </label>
-        <button id="loadEventsBtn">Termine laden</button>
-      </div>
-
-      <div class="calendar-toolbar" role="toolbar" aria-label="Kalender Navigation">
-        <div class="left">
-          <button type="button" id="todayBtn" title="Heute">Heute</button>
-          <div class="nav">
-            <button type="button" id="prevBtn" aria-label="Vorheriger Zeitraum">◀</button>
-            <div class="current-range" id="currentRangeLabel"></div>
-            <button type="button" id="nextBtn" aria-label="Nächster Zeitraum">▶</button>
-          </div>
-        </div>
-        <div class="right">
-          <div class="view-switch" role="tablist" aria-label="Ansicht wählen">
-            <button type="button" role="tab" aria-selected="true" id="viewMonthBtn">Monat</button>
-            <button type="button" role="tab" aria-selected="false" id="viewWeekBtn">Woche</button>
-            <button type="button" role="tab" aria-selected="false" id="viewDayBtn">Tag</button>
-            <button type="button" role="tab" aria-selected="false" id="viewAgendaBtn">Agenda</button>
-          </div>
-        </div>
-      </div>
-
-      <div id="calendarView" class="calendar-view" aria-live="polite"></div>
-    </section>
-
-    <section class="card" id="eventsSection" hidden>
-      <h2>Termine</h2>
-      <table id="eventsTable">
-        <thead>
-          <tr>
-            <th>Kalender</th>
-            <th>Betreff</th>
-            <th>Start</th>
-            <th>Ende</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-    </section>
-
-    <section class="card" id="editSection" hidden>
-      <h2 id="editTitle">Neuer Termin</h2>
-      <form id="eventForm">
-        <input type="hidden" id="eventHref" />
-        <input type="hidden" id="eventEtag" />
-        <label>
-          Kalender
-          <select id="eventCalendar" required></select>
-        </label>
-        <label>
-          Betreff
-          <input type="text" id="eventSummary" required />
-        </label>
-        <label>
-          Beschreibung
-          <textarea id="eventDescription" rows="3"></textarea>
-        </label>
-        <label>
-          Ort
-          <input type="text" id="eventLocation" />
-        </label>
-        <div class="row">
-          <label>
-            Start
-            <input type="datetime-local" id="eventStart" required />
-          </label>
-          <label>
-            Ende
-            <input type="datetime-local" id="eventEnd" required />
-          </label>
-        </div>
-        <label class="checkbox">
-          <input type="checkbox" id="eventAllDay" /> Ganztägig
-        </label>
-        <div class="row right">
-          <button type="button" id="cancelEditBtn">Abbrechen</button>
-          <button type="submit" id="saveEventBtn">Speichern</button>
-        </div>
-      </form>
-    </section>
+    
 
   </main>
 
@@ -136,7 +49,7 @@
     <small>Hinweis: Viele CalDAV-Server erfordern vertrauenswürdige Zertifikate. CORS wird über diesen Server gelöst.</small>
   </footer>
 
-  <script src="/app.js" type="module"></script>
+  <script src="/connect.js" type="module"></script>
   </body>
   </html>
 
