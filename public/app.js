@@ -9,6 +9,8 @@ const state = {
 
 const el = {
   connectForm: document.getElementById('connectForm'),
+  demoBtn: document.getElementById('demoBtn'),
+  demoMsg: document.getElementById('demoMsg'),
   serverUrl: document.getElementById('serverUrl'),
   username: document.getElementById('username'),
   password: document.getElementById('password'),
@@ -65,6 +67,35 @@ el.connectForm.addEventListener('submit', async (e) => {
   }
 });
 
+// Demo Button
+el.demoBtn.addEventListener('click', async () => {
+  try {
+    el.demoMsg.textContent = 'Demo wird geladen...';
+    el.demoMsg.className = 'msg';
+    state.serverUrl = 'demo';
+    state.username = 'demo';
+    state.password = 'demo';
+    const { calendars } = await api('/api/list-calendars', { demo: true });
+    state.calendars = calendars;
+    state.selectedCalendarUrls = new Set(calendars.map(c => c.url));
+    renderCalendars();
+    populateCalendarSelect();
+    el.calendarSection.hidden = false;
+    el.connectMsg.textContent = 'Demo-Modus aktiv.';
+    el.connectMsg.className = 'msg ok';
+    el.demoMsg.textContent = '';
+    // Load demo events immediately
+    await loadEvents();
+    // Update URL
+    const url = new URL(location.href);
+    url.searchParams.set('demo', '1');
+    history.replaceState(null, '', url.toString());
+  } catch (err) {
+    el.demoMsg.textContent = err.message || 'Demo konnte nicht geladen werden';
+    el.demoMsg.className = 'msg error';
+  }
+});
+
 el.loadEventsBtn.addEventListener('click', async () => {
   await loadEvents();
 });
@@ -116,6 +147,14 @@ async function api(url, body) {
   if (!res.ok) throw new Error(data?.error || 'Fehler');
   return data;
 }
+
+// Auto-demo via query param
+window.addEventListener('DOMContentLoaded', () => {
+  const params = new URLSearchParams(location.search);
+  if (params.get('demo') === '1') {
+    el.demoBtn.click();
+  }
+});
 
 function renderCalendars() {
   el.calendarList.innerHTML = '';

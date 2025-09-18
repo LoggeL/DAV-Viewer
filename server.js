@@ -15,7 +15,55 @@ app.use(cors());
 app.use(express.json({ limit: '2mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+const DEMO_MODE = process.env.DEMO === '1' || process.env.DEMO_MODE === '1';
+
+function isDemo(body) {
+  if (DEMO_MODE) return true;
+  if (!body) return false;
+  if (body.demo === true) return true;
+  if (typeof body.serverUrl === 'string' && body.serverUrl.trim().toLowerCase() === 'demo') return true;
+  return false;
+}
+
+// Demo-Daten im Speicher
+const demoStore = {
+  calendars: [
+    { url: 'demo://work', displayName: 'Work', ctag: '1', color: '#3b82f6' },
+    { url: 'demo://personal', displayName: 'Personal', ctag: '1', color: '#22c55e' }
+  ],
+  events: new Map()
+};
+
+function initDemoEvents() {
+  if (demoStore.events.size > 0) return;
+  const now = new Date();
+  const base = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 0, 0, 0);
+  const make = (calUrl, offsetDays, hours = 1, summary = 'Meeting', allDay = false) => {
+    const start = new Date(base.getTime() + offsetDays * 86400000);
+    const end = new Date(start.getTime() + hours * 3600000);
+    const uid = cryptoRandom(10);
+    const href = `${calUrl}/evt-${uid}.ics`;
+    const etag = `"${cryptoRandom(6)}"`;
+    return { href, etag, uid, summary, description: '', location: '', start: start.toISOString(), end: end.toISOString(), allDay };
+  };
+  demoStore.events.set('demo://work', [
+    make('demo://work', -2, 1, 'Sync mit Team'),
+    make('demo://work', -1, 2, 'Projekt Kickoff'),
+    make('demo://work', 0, 1, '1:1 Check-in'),
+    make('demo://work', 1, 1, 'Architektur-Review'),
+    make('demo://work', 3, 2, 'Sprint Planung')
+  ]);
+  demoStore.events.set('demo://personal', [
+    make('demo://personal', 0, 0, 'Geburtstag', true),
+    make('demo://personal', 2, 1, 'Arzttermin'),
+    make('demo://personal', 4, 1, 'Laufen im Park'),
+    make('demo://personal', 6, 2, 'Familienessen'),
+    make('demo://personal', -3, 1, 'Einkaufen')
+  ]);
+}
+
 function validateCreds(body) {
+  if (isDemo(body)) return;
   const { serverUrl, username, password } = body || {};
   if (!serverUrl || !username || !password) {
     const err = new Error('serverUrl, username und password sind erforderlich');
@@ -94,6 +142,11 @@ function jsonToIcs({ uid, summary, description, location, start, end, allDay }) 
 // ---- Routes ----
 app.post('/api/list-calendars', async (req, res) => {
   try {
+    if (isDemo(req.body)) {
+      initDemoEvents();
+      const result = demoStore.calendars.map(cal => ({ url: cal.url, displayName: cal.displayName, ctag: cal.ctag || null, color: cal.color || null }));
+      return res.json({ calendars: result });
+    }
     validateCreds(req.body);
     const { serverUrl, username, password } = req.body;
     const client = await buildClient({ serverUrl, username, password });
@@ -114,6 +167,22 @@ app.post('/api/list-calendars', async (req, res) => {
 
 app.post('/api/list-events', async (req, res) => {
   try {
+    if (isDemo(req.body)) {
+      initDemoEvents();
+      const { calendarUrl, timeMin, timeMax } = req.body;
+      if (!calendarUrl) {
+        const err = new Error('calendarUrl ist erforderlich');
+        err.status = 400;
+        throw err;
+      }
+      const start = timeMin ? new Date(timeMin) : new Date(Date.now() - 1000 * 60 * 60 * 24 * 30);
+      const end = timeMax ? new Date(timeMax) : new Date(Date.now() + 1000 * 60 * 60 * 24 * 60);
+      const items = (demoStore.events.get(calendarUrl) || []).filter(evt => {
+        const s = new Date(evt.start);
+        return s >= start && s <= end;
+      });
+      return res.json({ events: items });
+    }
     validateCreds(req.body);
     const { serverUrl, username, password, calendarUrl, timeMin, timeMax } = req.body;
     if (!calendarUrl) {
@@ -160,6 +229,23 @@ app.post('/api/list-events', async (req, res) => {
 
 app.post('/api/create-event', async (req, res) => {
   try {
+    if (isDemo(req.body)) {
+      initDemoEvents();
+      const { calendarUrl, event } = req.body;
+      if (!calendarUrl || !event) {
+        const err = new Error('calendarUrl und event sind erforderlich');
+        err.status = 400;
+        throw err;
+      }
+      const list = demoStore.events.get(calendarUrl) || [];
+      const uid = event.uid || cryptoRandom(10);
+      const href = `${calendarUrl}/evt-${uid}.ics`;
+      const etag = `"${cryptoRandom(6)}"`;
+      const newEvt = { href, etag, uid, summary: event.summary || '', description: event.description || '', location: event.location || '', start: event.start, end: event.end, allDay: !!event.allDay };
+      list.push(newEvt);
+      demoStore.events.set(calendarUrl, list);
+      return res.json({ href, etag });
+    }
     validateCreds(req.body);
     const { serverUrl, username, password, calendarUrl, event } = req.body;
     if (!calendarUrl || !event) {
@@ -186,6 +272,30 @@ app.post('/api/create-event', async (req, res) => {
 
 app.post('/api/update-event', async (req, res) => {
   try {
+    if (isDemo(req.body)) {
+      initDemoEvents();
+      const { calendarObjectUrl, event } = req.body;
+      if (!calendarObjectUrl || !event) {
+        const err = new Error('calendarObjectUrl und event sind erforderlich');
+        err.status = 400;
+        throw err;
+      }
+      // calendarObjectUrl: demo://<cal>/evt-xxx.ics
+      const parts = calendarObjectUrl.split('/');
+      const calUrl = parts.slice(0, 3).join('/');
+      const list = demoStore.events.get(calUrl) || [];
+      const idx = list.findIndex(x => x.href === calendarObjectUrl);
+      if (idx === -1) {
+        const err = new Error('Demo-Termin nicht gefunden');
+        err.status = 404;
+        throw err;
+      }
+      const old = list[idx];
+      const newEtag = `"${cryptoRandom(6)}"`;
+      list[idx] = { ...old, summary: event.summary || '', description: event.description || '', location: event.location || '', start: event.start, end: event.end, allDay: !!event.allDay, etag: newEtag };
+      demoStore.events.set(calUrl, list);
+      return res.json({ ok: true, etag: newEtag });
+    }
     validateCreds(req.body);
     const { serverUrl, username, password, calendarObjectUrl, etag, event } = req.body;
     if (!calendarObjectUrl || !event) {
@@ -207,6 +317,22 @@ app.post('/api/update-event', async (req, res) => {
 
 app.post('/api/delete-event', async (req, res) => {
   try {
+    if (isDemo(req.body)) {
+      initDemoEvents();
+      const { calendarObjectUrl } = req.body;
+      if (!calendarObjectUrl) {
+        const err = new Error('calendarObjectUrl ist erforderlich');
+        err.status = 400;
+        throw err;
+      }
+      const parts = calendarObjectUrl.split('/');
+      const calUrl = parts.slice(0, 3).join('/');
+      const list = demoStore.events.get(calUrl) || [];
+      const idx = list.findIndex(x => x.href === calendarObjectUrl);
+      if (idx !== -1) list.splice(idx, 1);
+      demoStore.events.set(calUrl, list);
+      return res.json({ ok: true });
+    }
     validateCreds(req.body);
     const { serverUrl, username, password, calendarObjectUrl, etag } = req.body;
     if (!calendarObjectUrl) {
