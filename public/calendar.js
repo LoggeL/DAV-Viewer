@@ -1,10 +1,25 @@
-import { state, loadCredsFromStorage, ensureDemoFromUrl, saveCredsToStorage, fetchCalendars, fetchEventsForSelectedCalendars, toInputDateTimeLocal, api, creds } from './common.js';
+import { state, loadCredsFromStorage, ensureDemoFromUrl, saveCredsToStorage, fetchCalendars, fetchEventsForSelectedCalendars, toInputDate, toInputDateTimeLocal, endOfDay, api, creds, formatDateTime } from './common.js';
 
-let calendar;
+// UI state for calendar view
+const ui = {
+  eventsByCal: new Map(),
+  viewMode: 'month', // 'month' | 'week' | 'day' | 'agenda'
+  currentDate: new Date()
+};
 
 const el = {
   calendarList: document.getElementById('calendarList'),
-  fc: document.getElementById('fullcalendar'),
+  calendarView: document.getElementById('calendarView'),
+  // Toolbar
+  todayBtn: document.getElementById('todayBtn'),
+  prevBtn: document.getElementById('prevBtn'),
+  nextBtn: document.getElementById('nextBtn'),
+  viewMonthBtn: document.getElementById('viewMonthBtn'),
+  viewWeekBtn: document.getElementById('viewWeekBtn'),
+  viewDayBtn: document.getElementById('viewDayBtn'),
+  viewAgendaBtn: document.getElementById('viewAgendaBtn'),
+  currentRangeLabel: document.getElementById('currentRangeLabel'),
+  // Editor
   editSection: document.getElementById('editSection'),
   editTitle: document.getElementById('editTitle'),
   eventForm: document.getElementById('eventForm'),
@@ -34,7 +49,8 @@ async function init() {
   }
   renderCalendars();
   populateCalendarSelect();
-  initFullCalendar();
+  initToolbar();
+  await refreshCalendar();
 }
 
 function renderCalendars() {
@@ -45,10 +61,11 @@ function renderCalendars() {
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
     checkbox.checked = state.selectedCalendarUrls.has(cal.url);
-    checkbox.addEventListener('change', () => {
-      if (checkbox.checked) state.selectedCalendarUrls.add(cal.url); else state.selectedCalendarUrls.delete(cal.url);
+    checkbox.addEventListener('change', async () => {
+      if (checkbox.checked) state.selectedCalendarUrls.add(cal.url);
+      else state.selectedCalendarUrls.delete(cal.url);
       saveCredsToStorage();
-      calendar?.refetchEvents();
+      await refreshCalendar();
     });
     const label = document.createElement('span');
     label.textContent = cal.displayName;
@@ -69,73 +86,302 @@ function populateCalendarSelect() {
   el.eventCalendar.innerHTML = '';
   state.calendars.forEach(cal => {
     const opt = document.createElement('option');
-    opt.value = cal.url; opt.textContent = cal.displayName;
+    opt.value = cal.url;
+    opt.textContent = cal.displayName;
     el.eventCalendar.appendChild(opt);
   });
 }
 
-function initFullCalendar() {
-  const { Calendar } = window.FullCalendar;
-  calendar = new Calendar(el.fc, {
-    initialView: 'dayGridMonth',
-    height: 'auto',
-    headerToolbar: {
-      left: 'prev,next today',
-      center: 'title',
-      right: 'dayGridMonth,timeGridWeek,timeGridDay,listMonth'
-    },
-    selectable: true,
-    selectMirror: true,
-    eventTimeFormat: { hour: '2-digit', minute: '2-digit', hour12: false },
-    events: async (info, success, failure) => {
-      try {
-        const items = await fetchEventsForSelectedCalendars(info.start, info.end);
-        const mapped = items.map(({ cal, e }) => ({
-          id: e.href,
-          title: e.summary || '',
-          start: e.start,
-          end: e.end,
-          allDay: !!e.allDay,
-          backgroundColor: cal?.color || undefined,
-          borderColor: cal?.color || undefined,
-          extendedProps: {
-            calUrl: cal?.url,
-            etag: e.etag || null,
-            description: e.description || '',
-            location: e.location || ''
-          }
-        }));
-        success(mapped);
-      } catch (err) {
-        failure(err);
-      }
-    },
-    dateClick: (info) => {
-      const start = info.date;
-      if (info.allDay) {
-        const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1);
-        openEditor({ calendarUrl: state.calendars[0]?.url || '', start: start.toISOString(), end: end.toISOString(), allDay: true });
-      } else {
-        const end = new Date(start.getTime() + 60 * 60 * 1000);
-        openEditor({ calendarUrl: state.calendars[0]?.url || '', start: start.toISOString(), end: end.toISOString(), allDay: false });
-      }
-    },
-    eventClick: (info) => {
-      const e = info.event;
-      openEditor({
-        href: e.id,
-        etag: e.extendedProps.etag,
-        calendarUrl: e.extendedProps.calUrl,
-        summary: e.title,
-        description: e.extendedProps.description,
-        location: e.extendedProps.location,
-        start: e.start?.toISOString(),
-        end: (e.end || e.start)?.toISOString(),
-        allDay: e.allDay
-      });
-    }
+function initToolbar() {
+  if (!el.todayBtn) return;
+  el.todayBtn.addEventListener('click', async () => {
+    ui.currentDate = new Date();
+    await refreshCalendar();
   });
-  calendar.render();
+  el.prevBtn.addEventListener('click', async () => {
+    shiftCurrentDate(-1);
+    await refreshCalendar();
+  });
+  el.nextBtn.addEventListener('click', async () => {
+    shiftCurrentDate(1);
+    await refreshCalendar();
+  });
+  el.viewMonthBtn.addEventListener('click', async () => {
+    setViewMode('month');
+    await refreshCalendar();
+  });
+  el.viewWeekBtn.addEventListener('click', async () => {
+    setViewMode('week');
+    await refreshCalendar();
+  });
+  el.viewDayBtn.addEventListener('click', async () => {
+    setViewMode('day');
+    await refreshCalendar();
+  });
+  el.viewAgendaBtn.addEventListener('click', async () => {
+    setViewMode('agenda');
+    await refreshCalendar();
+  });
+  updateViewSwitchButtons();
+  updateToolbarLabel();
+}
+
+function setViewMode(mode) {
+  ui.viewMode = mode;
+  updateViewSwitchButtons();
+  updateToolbarLabel();
+}
+
+function shiftCurrentDate(delta) {
+  const d = new Date(ui.currentDate);
+  if (ui.viewMode === 'month') d.setMonth(d.getMonth() + delta);
+  else if (ui.viewMode === 'week') d.setDate(d.getDate() + delta * 7);
+  else d.setDate(d.getDate() + delta);
+  ui.currentDate = d;
+  updateToolbarLabel();
+}
+
+function updateViewSwitchButtons() {
+  const map = {
+    month: el.viewMonthBtn,
+    week: el.viewWeekBtn,
+    day: el.viewDayBtn,
+    agenda: el.viewAgendaBtn
+  };
+  for (const key of Object.keys(map)) {
+    map[key].setAttribute('aria-selected', String(key === ui.viewMode));
+  }
+}
+
+function getVisibleRange() {
+  const anchor = new Date(ui.currentDate);
+  if (ui.viewMode === 'month') {
+    const firstOfMonth = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+    const start = startOfWeek(firstOfMonth);
+    const end = new Date(start.getTime() + 41 * 86400000);
+    end.setHours(23, 59, 59, 999);
+    return { start, end };
+  }
+  if (ui.viewMode === 'week') {
+    const start = startOfWeek(anchor);
+    const end = new Date(start.getTime() + 6 * 86400000);
+    end.setHours(23, 59, 59, 999);
+    return { start, end };
+  }
+  if (ui.viewMode === 'agenda') {
+    const start = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
+    const end = new Date(start.getTime() + 29 * 86400000);
+    end.setHours(23, 59, 59, 999);
+    return { start, end };
+  }
+  const start = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
+  const end = new Date(start.getFullYear(), start.getMonth(), start.getDate(), 23, 59, 59, 999);
+  return { start, end };
+}
+
+function updateToolbarLabel() {
+  if (!el.currentRangeLabel) return;
+  const { start, end } = getVisibleRange();
+  if (ui.viewMode === 'month') {
+    el.currentRangeLabel.textContent = formatMonthLabel(ui.currentDate);
+  } else if (ui.viewMode === 'week' || ui.viewMode === 'agenda') {
+    el.currentRangeLabel.textContent = `${formatDayMonth(start)} – ${formatDayMonth(end)} ${start.getFullYear()}`;
+  } else {
+    el.currentRangeLabel.textContent = formatLongDate(start);
+  }
+}
+
+async function refreshCalendar() {
+  const { start, end } = getVisibleRange();
+  updateToolbarLabel();
+  // Fetch events for visible range
+  ui.eventsByCal.clear();
+  try {
+    const items = await fetchEventsForSelectedCalendars(start, end);
+    for (const { cal, e } of items) {
+      if (!cal) continue;
+      if (!ui.eventsByCal.has(cal.url)) ui.eventsByCal.set(cal.url, []);
+      ui.eventsByCal.get(cal.url).push(e);
+    }
+  } catch (_) {}
+  await renderCalendarView();
+}
+
+async function renderCalendarView() {
+  const container = el.calendarView;
+  if (!container) return;
+  container.innerHTML = '';
+  const range = getVisibleRange();
+  const ctx = getViewContext();
+  if (ui.viewMode === 'month') {
+    const mod = await import('/views/month.js');
+    mod.render(container, ctx, range);
+  } else if (ui.viewMode === 'week') {
+    const mod = await import('/views/week.js');
+    mod.render(container, ctx, range);
+  } else if (ui.viewMode === 'day') {
+    const mod = await import('/views/day.js');
+    mod.render(container, ctx, range);
+  } else if (ui.viewMode === 'agenda') {
+    const mod = await import('/views/agenda.js');
+    mod.render(container, ctx, range);
+  }
+}
+
+function getViewContext() {
+  return {
+    state,
+    toInputDate,
+    toInputDateTimeLocal,
+    endOfDay,
+    isSameDate,
+    formatWeekdayShort,
+    formatTimeLabel,
+    formatMonthLabel,
+    formatDayMonth,
+    formatLongDate,
+    startOfWeek,
+    minutesFromStartOfDay,
+    getHourHeightPx,
+    layoutOverlappingEvents,
+    getEventsForVisibleCalendars,
+    groupEventsByDateKey,
+    createEventChip,
+    createDayHeader,
+    showEditor: openEditor,
+    escapeHtml: escapeHtml,
+    formatDateTime
+  };
+}
+
+function getEventsForVisibleCalendars() {
+  const items = [];
+  for (const cal of state.calendars) {
+    if (!state.selectedCalendarUrls.has(cal.url)) continue;
+    const events = ui.eventsByCal.get(cal.url) || [];
+    for (const e of events) items.push({ cal, e });
+  }
+  return items;
+}
+
+function groupEventsByDateKey(items) {
+  const map = new Map();
+  for (const it of items) {
+    const d = new Date(it.e.start);
+    const key = toInputDate(d);
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(it);
+  }
+  for (const key of map.keys()) {
+    map.get(key).sort((a, b) => new Date(a.e.start) - new Date(b.e.start));
+  }
+  return map;
+}
+
+function createEventChip(cal, e) {
+  const chip = document.createElement('button');
+  chip.className = 'evt-chip';
+  chip.style.borderLeftColor = cal.color || 'var(--accent)';
+  chip.title = `${e.summary || ''}`;
+  const timeLabel = e.allDay ? 'Ganztägig' : formatTimeLabel(new Date(e.start));
+  chip.innerHTML = `<span class="dot" style="background:${cal.color || 'var(--accent)'}"></span><span class="txt">${escapeHtml(timeLabel)} ${escapeHtml(e.summary || '')}</span>`;
+  chip.addEventListener('click', (evt) => {
+    evt.stopPropagation();
+    openEditor({
+      href: e.href,
+      etag: e.etag,
+      calendarUrl: cal.url,
+      summary: e.summary,
+      description: e.description,
+      location: e.location,
+      start: e.start,
+      end: e.end,
+      allDay: e.allDay
+    });
+  });
+  return chip;
+}
+
+function createDayHeader(d) {
+  const head = document.createElement('div');
+  head.className = 'day-head';
+  const isToday = isSameDate(d, new Date());
+  head.innerHTML = `<span class="dow">${formatWeekdayShort(d)}</span><span class="dom ${isToday ? 'today' : ''}">${d.getDate()}</span>`;
+  return head;
+}
+
+function layoutOverlappingEvents(events) {
+  const sorted = [...events].sort((a, b) => a.start - b.start || a.end - b.end);
+  const tracks = [];
+  const placed = [];
+  for (const ev of sorted) {
+    let assignedTrackIndex = -1;
+    for (let i = 0; i < tracks.length; i++) {
+      const last = tracks[i][tracks[i].length - 1];
+      if (last.end <= ev.start) {
+        tracks[i].push(ev);
+        assignedTrackIndex = i;
+        break;
+      }
+    }
+    if (assignedTrackIndex === -1) {
+      tracks.push([ev]);
+      assignedTrackIndex = tracks.length - 1;
+    }
+    placed.push({ ...ev, trackIndex: assignedTrackIndex, trackCount: 0 });
+  }
+  const trackCount = tracks.length || 1;
+  for (const p of placed) p.trackCount = trackCount;
+  return placed;
+}
+
+function minutesFromStartOfDay(d) {
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+function getHourHeightPx() {
+  return 48; // keep in sync with CSS --hour-height
+}
+
+function startOfWeek(d) {
+  const day = (d.getDay() + 6) % 7; // 0=Mon
+  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  start.setDate(start.getDate() - day);
+  return start;
+}
+
+function isSameDate(a, b) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function formatWeekdayShort(d) {
+  return ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'][(d.getDay() + 6) % 7];
+}
+
+function formatTimeLabel(d) {
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${hh}:${mm}`;
+}
+
+function formatMonthLabel(d) {
+  const months = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+  return `${months[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function formatDayMonth(d) {
+  const months = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+  return `${d.getDate()}. ${months[d.getMonth()]}`;
+}
+
+function formatLongDate(d) {
+  const weekdays = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+  const months = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+  return `${weekdays[d.getDay()]}, ${d.getDate()}. ${months[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"]/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[s]));
 }
 
 function openEditor(evt) {
@@ -171,7 +417,7 @@ el.eventForm.addEventListener('submit', async (e) => {
     } else {
       await api('/api/create-event', { ...(state.serverUrl === 'demo' ? { demo: true } : creds()), calendarUrl: payload.calendarUrl, event: payload.event });
     }
-    await calendar?.refetchEvents();
+    await refreshCalendar();
     hideEditor();
   } catch (err) {
     alert(err.message || 'Fehler beim Speichern');
@@ -196,4 +442,3 @@ function collectEventForm() {
   const event = { summary, description, location, start: start.toISOString(), end: end.toISOString(), allDay };
   return { calendarUrl, href, etag, event };
 }
-
