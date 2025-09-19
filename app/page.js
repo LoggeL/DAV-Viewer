@@ -1,8 +1,8 @@
 "use client";
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function ConnectPage() {
+function ConnectPageInner() {
   const router = useRouter();
   const search = useSearchParams();
   const [serverUrl, setServerUrl] = useState('');
@@ -86,6 +86,14 @@ export default function ConnectPage() {
       </form>
       <div className="msg">{msg}</div>
     </section>
+  );
+}
+
+export default function ConnectPage() {
+  return (
+    <Suspense fallback={null}>
+      <ConnectPageInner />
+    </Suspense>
   );
 }
 
